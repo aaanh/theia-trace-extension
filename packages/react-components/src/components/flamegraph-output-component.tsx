@@ -836,13 +836,26 @@ export class FlamegraphOutputComponent extends AbstractTreeOutputComponent<
             end = end ? end : (elementRange.end + (offset ? offset : BigInt(0))).toString() + ' ns';
             const duration = (elementRange.end - elementRange.start).toString() + ' ns';
             const tooltip = await this.tspDataProvider.fetchStateTooltip(element, this.props.viewRange);
+
+            // Find the corresponding entry to get its metadata
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let entryMetadata: { [key: string]: any } = {};
+            if (element.row && element.row.model && element.row.model.id !== undefined) {
+                const entry = this.state.callgraphTree.find(e => e.id === element.row.model.id);
+                if (entry && entry.metadata) {
+                    entryMetadata = entry.metadata;
+                }
+            }
+
+            // Merge all metadata fields into the tooltip
             return this.filterTooltip({
                 Label: label,
                 'Start time': start,
                 'End time': end,
                 Duration: duration,
                 Row: element.row.model.name,
-                ...tooltip
+                ...entryMetadata, // always include entry metadata
+                ...tooltip // server-provided fields (may override)
             });
         } else if (element instanceof TimeGraphAnnotationComponent) {
             const category = element.model.category ? element.model.category : 'Label';
