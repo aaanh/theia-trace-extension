@@ -51,6 +51,7 @@ import {
 import { ContextMenuItemClickedSignalPayload } from 'traceviewer-base/lib/signals/context-menu-item-clicked-signal-payload';
 import { RowSelectionsChangedSignalPayload } from 'traceviewer-base/lib/signals/row-selections-changed-signal-payload';
 import { ItemPropertiesSignalPayload } from 'traceviewer-base/lib/signals/item-properties-signal-payload';
+import { Input, Slider, Stack } from '@mui/material';
 
 export type AbstractGanttOutputProps = AbstractOutputProps & {
     menu_id: string;
@@ -818,7 +819,10 @@ export abstract class AbstractGanttOutputComponent<
             <div id={id} ref={this.horizontalContainer} style={{ height: 'auto', marginTop: this.state.marginTop }}>
                 {this.getChartContainer()}
                 {this.getMarkersContainer()}
-                {this.getSearchBar()}
+                <div style={{ display: 'flex', gap: 4 }}>
+                    {this.getSearchBar()}
+                    {this.getRangeSliderSelector()}
+                </div>
             </div>
         );
     }
@@ -866,6 +870,26 @@ export abstract class AbstractGanttOutputComponent<
                     />
                 ))}
             </div>
+        );
+    }
+
+    private getRangeSliderSelector() {
+        return (
+            <Stack spacing={2} direction="row" sx={{ alignItems: 'center', mb: 1, paddingX: '0.5rem' }}>
+                <Input
+                    value={0}
+                    inputProps={{
+                        style: { color: '#fff', textAlign: 'center', borderBottom: 'none', fontFamily: 'monospace' }
+                    }}
+                />
+                <Slider aria-label="selected trace range" value={[0, 100]} valueLabelDisplay="auto" />
+                <Input
+                    value={100}
+                    inputProps={{
+                        style: { color: '#fff', textAlign: 'center', borderBottom: 'none', fontFamily: 'monospace' }
+                    }}
+                />
+            </Stack>
         );
     }
 
