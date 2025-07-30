@@ -600,27 +600,30 @@ input[type='reset'].input-button {
     background: none;
 }
 
-.zoom-reset-button-container {
+.gantt-actions-container {
     display: flex;
     justify-content: flex-end;
     margin-bottom: 4;
-    flex-direction: column;
+    flex-direction: row;
     position: absolute;
+    gap: 4pt;
     z-index: 10;
 }
 
-.zoom-reset-button {
+.gantt-action-button {
     all: unset;
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 2.5px 8px;
+    padding: 2.5px 4px;
     background: var(--theia-button-secondaryBackground);
     color: var(--theia-editor-foreground);
     border-radius: 4;
     cursor: pointer;
     font-size: 0.75rem;
     font-weight: bold;
+    height: fit-content;
+    width: fit-content;
 
     &:hover {
         background: var(--theia-button-secondaryHoverBackground);

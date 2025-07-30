@@ -9,6 +9,8 @@ import {
 import { EntryTree } from './utils/filter-tree/entry-tree';
 import { validateNumArray } from './utils/filter-tree/utils';
 import { ResponseStatus } from 'tsp-typescript-client';
+import { Button, Switch } from '@mui/material';
+import GanttConfigureMenu from './utils/gantt-configure-menu';
 
 type GanttChartOutputProps = AbstractGanttOutputProps & {
     initialViewRange?: TimelineChart.TimeGraphRange;
@@ -17,6 +19,7 @@ type GanttChartOutputProps = AbstractGanttOutputProps & {
 };
 type GanttChartOutputState = AbstractGanttOutputState & {
     zoomResetCounter?: number;
+    isSyncRange: boolean;
 };
 
 export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
@@ -48,7 +51,8 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
             searchString: '',
             filters: [],
             emptyNodes: [],
-            marginTop: 0
+            marginTop: 0,
+            isSyncRange: false
         };
 
         // Store a snapshot of the initial view range
@@ -63,11 +67,29 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
         // TODO Show header, when we can have entries in-line with timeline-chart
         return (
             <>
-                <div className="zoom-reset-button-container">
-                    <button className="item zoom-reset-button" onClick={this.handleResetZoom} aria-label="reset zoom">
-                        <i className="codicon codicon-arrow-both" /> Reset Zoom
+                <div className="gantt-actions-container">
+                    <button className="item gantt-action-button" onClick={this.handleResetZoom} aria-label="reset zoom">
+                        <i className="codicon codicon-arrow-both" /> Zoom
+                    </button>
+                    <button
+                        className="item gantt-action-button"
+                        onClick={this.handleSyncXRange}
+                        aria-label="reset zoom"
+                    >
+                        <i className="codicon-group-by-ref-type codicon" /> Range
                     </button>
                 </div>
+                {/* <div
+                    style={{
+                        position: 'absolute',
+                        marginBottom: 4,
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        zIndex: 10
+                    }}
+                >
+                    <GanttConfigureMenu />
+                </div> */}
                 <div
                     ref={this.chartTreeRef}
                     className="scrollable"
@@ -122,6 +144,11 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
             </>
         );
     }
+
+    private handleSyncXRange = () => {
+        console.log(this.props.viewRange.getStart().toString(), this.props.viewRange.getEnd().toString());
+        this.setState(prev => ({ isSyncRange: !prev.isSyncRange }));
+    };
 
     private handleResetZoom = () => {
         // Reset the view range to the initial global view range snapshot
