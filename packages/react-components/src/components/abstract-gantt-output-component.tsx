@@ -53,7 +53,7 @@ import { RowSelectionsChangedSignalPayload } from 'traceviewer-base/lib/signals/
 import { ItemPropertiesSignalPayload } from 'traceviewer-base/lib/signals/item-properties-signal-payload';
 
 export type AbstractGanttOutputProps = AbstractOutputProps & {
-    menu_id: string;
+    menuId: string;
     coarse_resolution_factor?: number;
     chartGridName: string;
     chartId: string;
@@ -124,7 +124,7 @@ export abstract class AbstractGanttOutputComponent<
 
     constructor(props: P) {
         super(props);
-        this.MENU_ID = props.menu_id;
+        this.MENU_ID = props.menuId;
         this.selectedMarkerCategories = this.props.markerCategories;
         this.onToggleCollapse = this.onToggleCollapse.bind(this);
         this.onMarkerCategoryRowClose = this.onMarkerCategoryRowClose.bind(this);
