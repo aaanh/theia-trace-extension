@@ -57,6 +57,43 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
         };
     }
 
+    private updateSyncModeUnitController(range: TimelineChart.TimeGraphRange): void {
+        const selectionDuration = range.end - range.start;
+        this.props.unitController.absoluteRange = selectionDuration;
+        // Keep the view range spanning the full width but with normalized coordinates
+        this.props.unitController.viewRange = { start: BigInt(0), end: selectionDuration };
+
+        // Force complete chart refresh with new range
+        this.chartLayer.updateChart();
+        // Also update the chart layer to ensure proper rendering
+        setTimeout(() => {
+            this.chartLayer.update();
+            // Force a resize event to ensure proper width calculation
+            window.dispatchEvent(new Event('resize'));
+            // Force chart to rebuild with new data
+            this.chartLayer.updateChart();
+        }, 0);
+    }
+
+    async componentDidMount(): Promise<void> {
+        await super.componentDidMount();
+        // Listen for selection range changes to update sync mode
+        this.props.unitController.onSelectionRangeChange(range => {
+            if (this.state.isSyncRange && range) {
+                this.updateSyncModeUnitController(range);
+            }
+        });
+
+        // Override view range changes to prevent resetting in sync mode
+        this.props.unitController.onViewRangeChanged((oldRange, newRange) => {
+            if (this.state.isSyncRange) {
+                // In sync mode, prevent view range changes that would reset the x-axis
+                const selectionDuration = this.props.syncedRange!.end! - this.props.syncedRange!.start!;
+                this.props.unitController.viewRange = { start: BigInt(0), end: selectionDuration };
+            }
+        });
+    }
+
     async fetchTree(): Promise<ResponseStatus> {
         const parameters = this.state.isSyncRange
             ? QueryHelper.timeRangeQuery(BigInt(0), BigInt('99999999999999999999999999999999999'), {
@@ -117,7 +154,7 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
                     <button
                         className="item gantt-action-button"
                         onClick={this.handleSyncXRange}
-                        aria-label="reset zoom"
+                        aria-label="sync analysis mode"
                         style={{
                             background: this.state.isSyncRange ? '#0078d7' : 'var(--theia-button-secondaryBackground)'
                         }}
@@ -206,32 +243,59 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
         const { start, end } = range;
 
         let newRange: TimelineChart.TimeGraphRange = { start: BigInt(0), end: BigInt(0) };
+        let syncAnalysisMode = false;
+        let selectionRange: TimelineChart.TimeGraphRange | undefined;
 
         if (this.state.isSyncRange) {
-            console.log('Using synced range');
+            console.log('Using synced range analysis mode');
             const normStart = this.props.syncedRange!.start!;
             const normEnd = this.props.syncedRange!.end!;
 
-            newRange = {
+            selectionRange = {
                 start: BIMath.min(normStart, normEnd),
                 end: BIMath.max(normStart, normEnd)
             };
+
+            // For sync analysis mode, fetch the full range but we'll normalize the time coordinates
+            newRange = {
+                start: BigInt(0),
+                end: this.props.range.getEnd() - this.props.range.getStart()
+            };
+            syncAnalysisMode = true;
         } else {
             console.log('Using base range');
             newRange = range;
         }
-        const nbTimes = Math.ceil(Number(end - start) / resolution) + 1;
-        const timeGraphData: TimelineChart.TimeGraphModel = await this.tspDataProvider.getData(
-            ids,
-            this.state.chartTree,
-            fetchArrows,
-            this.props.range,
-            newRange,
-            nbTimes,
-            this.props.markerCategories,
-            this.props.markerSetId,
-            additionalProperties
-        );
+        const nbTimes = Math.ceil(Number(newRange.end - newRange.start) / resolution) + 1;
+
+        let timeGraphData: TimelineChart.TimeGraphModel;
+        if (syncAnalysisMode && selectionRange) {
+            // Use sync analysis mode to get full range with normalized time coordinates
+            timeGraphData = await this.tspDataProvider.getDataForSyncAnalysis(
+                ids,
+                this.state.chartTree,
+                fetchArrows,
+                this.props.range,
+                selectionRange,
+                nbTimes,
+                this.props.markerCategories,
+                this.props.markerSetId,
+                additionalProperties
+            );
+        } else {
+            // Use normal mode
+            timeGraphData = await this.tspDataProvider.getData(
+                ids,
+                this.state.chartTree,
+                fetchArrows,
+                this.props.range,
+                newRange,
+                nbTimes,
+                this.props.markerCategories,
+                this.props.markerSetId,
+                additionalProperties
+            );
+        }
         this.updateMarkersData(timeGraphData.rangeEvents, newRange, nbTimes);
         this.rangeEventsLayer.addRangeEvents(timeGraphData.rangeEvents);
 
@@ -273,6 +337,14 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
             this.pendingSelection = undefined;
             this.selectAndReveal(foundElement);
         }
+        // Update unit controller for sync analysis mode
+        if (syncAnalysisMode && selectionRange) {
+            // In sync analysis mode, update the unit controller to use normalized time range
+            const selectionDuration = selectionRange.end - selectionRange.start;
+            this.props.unitController.absoluteRange = selectionDuration;
+            this.props.unitController.viewRange = { start: BigInt(0), end: selectionDuration };
+        }
+
         return {
             rows: rows,
             range: newRange,
@@ -282,19 +354,52 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
 
     private handleSyncXRange = () => {
         console.log('Synced range: ', this.props.syncedRange?.start, this.props.syncedRange?.end);
-        this.setState(prev => ({ isSyncRange: !prev.isSyncRange }));
-        this.chartLayer.updateChart();
-        // this.chartLayer.update();
+        this.setState(
+            prev => ({ isSyncRange: !prev.isSyncRange }),
+            () => {
+                // Update unit controller after state change
+                if (this.state.isSyncRange && this.props.syncedRange) {
+                    const selectionDuration = this.props.syncedRange.end! - this.props.syncedRange.start!;
+                    this.props.unitController.absoluteRange = selectionDuration;
+                    this.props.unitController.viewRange = { start: BigInt(0), end: selectionDuration };
+                } else if (!this.state.isSyncRange) {
+                    // Reset to original range when sync is disabled
+                    const originalRange = this.props.range.getEnd() - this.props.range.getStart();
+                    this.props.unitController.absoluteRange = originalRange;
+                    this.props.unitController.viewRange = { start: BigInt(0), end: originalRange };
+                }
+                this.chartLayer.updateChart();
+            }
+        );
     };
 
     async componentDidUpdate(prevProps: GanttChartOutputProps, prevState: GanttChartOutputState): Promise<void> {
         super.componentDidUpdate(prevProps, prevState);
-        if (
-            !isEqual(prevProps.syncedRange, this.props.syncedRange) ||
-            !isEqual(prevState.isSyncRange, this.state.isSyncRange)
-        ) {
+
+        const syncModeChanged = !isEqual(prevState.isSyncRange, this.state.isSyncRange);
+        const syncedRangeChanged = !isEqual(prevProps.syncedRange, this.props.syncedRange);
+
+        if (syncModeChanged || syncedRangeChanged) {
             this.fetchTree();
             this.chartLayer.updateChart();
+
+            // Update unit controller when sync mode changes
+            if (this.state.isSyncRange && this.props.syncedRange) {
+                const selectionDuration = this.props.syncedRange.end! - this.props.syncedRange.start!;
+                this.props.unitController.absoluteRange = selectionDuration;
+                this.props.unitController.viewRange = { start: BigInt(0), end: selectionDuration };
+            } else if (!this.state.isSyncRange) {
+                // Reset to original range when sync is disabled
+                const originalRange = this.props.range.getEnd() - this.props.range.getStart();
+                this.props.unitController.absoluteRange = originalRange;
+                this.props.unitController.viewRange = { start: BigInt(0), end: originalRange };
+            }
+        }
+
+        // Also check if we're in sync mode and the selection range has changed
+        if (this.state.isSyncRange && this.props.unitController.selectionRange && syncedRangeChanged) {
+            const selectionRange = this.props.unitController.selectionRange;
+            this.updateSyncModeUnitController(selectionRange);
         }
     }
 }

@@ -834,6 +834,7 @@ export class TraceContextComponent extends React.Component<TraceContextProps, Tr
                                         }}
                                     >
                                         <TimeAxisComponent
+                                            key={`${ganttChartUnitController.viewRange.start}-${ganttChartUnitController.viewRange.end}`}
                                             unitController={ganttChartUnitController}
                                             style={{ ...this.state.style, width: chartWidth, verticalAlign: 'bottom' }}
                                             addWidgetResizeHandler={this.addWidgetResizeHandler}
