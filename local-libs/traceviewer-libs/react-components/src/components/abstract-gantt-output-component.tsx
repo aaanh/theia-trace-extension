@@ -79,6 +79,7 @@ export type AbstractGanttOutputState = AbstractTreeOutputState & {
     menuItems?: ContextMenuItems;
     emptyNodes: number[];
     marginTop: number;
+    isSyncRange?: boolean;
 };
 
 export abstract class AbstractGanttOutputComponent<
@@ -893,7 +894,7 @@ export abstract class AbstractGanttOutputComponent<
         this.setState(prevState => ({ filters: prevState.filters.filter(f => f !== filter), emptyNodes: [] }));
     };
 
-    private filterExpressionsMap() {
+    protected filterExpressionsMap(): { [key: number]: string[] } | undefined {
         const filterExpressionsMap: { [key: number]: string[] } = {};
         if (this.state.searchString) {
             const DIMMED = 1;
@@ -1042,17 +1043,39 @@ export abstract class AbstractGanttOutputComponent<
         const { start, end } = range;
         const newRange: TimelineChart.TimeGraphRange = range;
         const nbTimes = Math.ceil(Number(end - start) / resolution) + 1;
-        const timeGraphData: TimelineChart.TimeGraphModel = await this.tspDataProvider.getData(
-            ids,
-            this.state.chartTree,
-            fetchArrows,
-            this.props.range,
-            newRange,
-            nbTimes,
-            this.props.markerCategories,
-            this.props.markerSetId,
-            additionalProperties
-        );
+
+        let timeGraphData: TimelineChart.TimeGraphModel;
+
+        // Use getSyncData if sync range is enabled and selection range is available
+        if (this.state.isSyncRange && this.props.unitController.selectionRange) {
+            const selectionRange: [bigint, bigint] = [
+                this.props.unitController.selectionRange.start,
+                this.props.unitController.selectionRange.end
+            ];
+            timeGraphData = await this.tspDataProvider.getSyncData(
+                ids,
+                this.state.chartTree,
+                fetchArrows,
+                this.props.range,
+                newRange,
+                nbTimes,
+                this.props.markerCategories,
+                this.props.markerSetId,
+                selectionRange
+            );
+        } else {
+            timeGraphData = await this.tspDataProvider.getData(
+                ids,
+                this.state.chartTree,
+                fetchArrows,
+                this.props.range,
+                newRange,
+                nbTimes,
+                this.props.markerCategories,
+                this.props.markerSetId,
+                additionalProperties
+            );
+        }
         this.updateMarkersData(timeGraphData.rangeEvents, newRange, nbTimes);
         this.rangeEventsLayer.addRangeEvents(timeGraphData.rangeEvents);
 

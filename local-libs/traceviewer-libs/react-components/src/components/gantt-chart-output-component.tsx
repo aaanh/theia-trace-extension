@@ -17,6 +17,7 @@ type GanttChartOutputProps = AbstractGanttOutputProps & {
 };
 type GanttChartOutputState = AbstractGanttOutputState & {
     zoomResetCounter?: number;
+    isSyncRange: boolean;
 };
 
 export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
@@ -48,7 +49,8 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
             searchString: '',
             filters: [],
             emptyNodes: [],
-            marginTop: 0
+            marginTop: 0,
+            isSyncRange: false
         };
 
         // Store a snapshot of the initial view range
@@ -63,6 +65,23 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
         // TODO Show header, when we can have entries in-line with timeline-chart
         return (
             <>
+                <div className="gantt-actions-container">
+                    <button
+                        className="item gantt-action-button"
+                        onClick={this.handleSyncXRange}
+                        aria-label="sync analysis mode"
+                        style={{
+                            background: this.state.isSyncRange ? '#0078d7' : 'var(--theia-button-secondaryBackground)'
+                        }}
+                    >
+                        {this.state.isSyncRange ? (
+                            <i className="codicon-sync codicon" />
+                        ) : (
+                            <i className="codicon-sync-ignored codicon" />
+                        )}
+                        <span>Range</span>
+                    </button>
+                </div>
                 <div
                     ref={this.chartTreeRef}
                     className="scrollable"
@@ -117,4 +136,14 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
             </>
         );
     }
+
+    private handleSyncXRange = () => {
+        this.setState(
+            prev => ({ isSyncRange: !prev.isSyncRange }),
+            () => {
+                // Trigger chart update to use the new sync state
+                this.chartLayer.updateChart(this.filterExpressionsMap());
+            }
+        );
+    };
 }

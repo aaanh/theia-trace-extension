@@ -343,4 +343,47 @@ export class TspDataProvider {
         const tooltipResponse = await this.client.fetchTimeGraphTooltip(this.traceUUID, this.outputId, parameters);
         return tooltipResponse.getModel()?.model;
     }
+
+    /**
+     * Get sync data with selection range for gantt chart synchronization
+     * @param ids requested entry ids
+     * @param entries time graph entries
+     * @param fetchArrows whether to fetch arrows
+     * @param totalTimeRange total time range
+     * @param worldRange requested view range relative to start of total time range
+     * @param nbTimes number of requested time samples
+     * @param annotationMarkers requested annotation categories
+     * @param markerSetId marker set id
+     * @param selectionRange selection range [start, end] for synchronization
+     * @returns time graph model
+     */
+    async getSyncData(
+        ids: number[],
+        entries: TimeGraphEntry[],
+        fetchArrows: boolean,
+        totalTimeRange: TimeRange,
+        worldRange?: TimelineChart.TimeGraphRange,
+        nbTimes?: number,
+        annotationMarkers?: string[],
+        markerSetId?: string,
+        selectionRange?: [bigint, bigint]
+    ): Promise<TimelineChart.TimeGraphModel> {
+        const additionalProperties: { [key: string]: any } = {};
+
+        if (selectionRange) {
+            additionalProperties.selection_range = selectionRange;
+        }
+
+        return this.getData(
+            ids,
+            entries,
+            fetchArrows,
+            totalTimeRange,
+            worldRange,
+            nbTimes,
+            annotationMarkers,
+            markerSetId,
+            additionalProperties
+        );
+    }
 }
