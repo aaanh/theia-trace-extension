@@ -11,6 +11,7 @@ import { getCollapsedNodesFromAutoExpandLevel, listToTree, validateNumArray } fr
 import { QueryHelper, ResponseStatus } from 'tsp-typescript-client';
 import ColumnHeader from './utils/filter-tree/column-header';
 import { isEqual } from 'lodash';
+import { BIMath } from 'timeline-chart/lib/bigint-utils';
 
 type GanttChartOutputProps = AbstractGanttOutputProps & {
     initialViewRange?: TimelineChart.TimeGraphRange;
@@ -141,10 +142,12 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
 
     async fetchTree(): Promise<ResponseStatus> {
         if (this.state.isSyncRange && this.props.selectionRange) {
-            const parameters = QueryHelper.timeRangeQuery(
-                this.props.selectionRange.getStart(),
-                this.props.selectionRange.getEnd()
-            );
+            // Convert relative selection range to absolute time by adding the offset
+            const offset = this.props.range.getOffset() || BigInt(0);
+            const absoluteStart = this.props.selectionRange.getStart() + offset;
+            const absoluteEnd = this.props.selectionRange.getEnd() + offset;
+
+            const parameters = QueryHelper.timeRangeQuery(absoluteStart, absoluteEnd);
             const tspClientResponse = await this.props.tspClient.fetchTimeGraphTree(
                 this.props.traceId,
                 this.props.outputDescriptor.id,
@@ -208,42 +211,74 @@ export class GanttChartOutputComponent extends AbstractGanttOutputComponent<
         additionalProperties?: { [key: string]: any }
     ): Promise<{ rows: TimelineChart.TimeGraphRowModel[]; range: TimelineChart.TimeGraphRange; resolution: number }> {
         if (this.state.isSyncRange && this.props.selectionRange) {
+            // Convert relative selection range to absolute time by adding the offset
+            const offset = this.props.range.getOffset() || BigInt(0);
+            const absoluteStart = this.props.selectionRange.getStart() + offset;
+            const absoluteEnd = this.props.selectionRange.getEnd() + offset;
+
             const _additionalProperties = {
                 ...additionalProperties,
-                selection_range: [
-                    this.props.selectionRange?.getStart() ??
-                        BigInt(0) + (this.props.selectionRange?.getOffset() ?? BigInt(0)),
-                    this.props.selectionRange?.getEnd() ??
-                        BigInt(0) + (this.props.selectionRange?.getOffset() ?? BigInt(0))
-                ]
+                requested_timerange: {
+                    start: absoluteStart,
+                    end: absoluteEnd
+                }
             };
-
-            return super.fetchChartData(
-                { start: this.props.selectionRange?.getStart(), end: this.props.selectionRange?.getEnd() },
-                resolution,
-                fetchArrows,
-                rowIds,
-                _additionalProperties
-            );
+            return super.fetchChartData(range, resolution, fetchArrows, rowIds, _additionalProperties);
         } else {
             return super.fetchChartData(range, resolution, fetchArrows, rowIds, additionalProperties);
         }
     }
 
-    private toggleSync() {
-        this.setState(prev => ({ isSyncRange: !prev.isSyncRange }));
+    private async toggleSync() {
+        const newSyncState = !this.state.isSyncRange;
+        this.setState(_prev => ({ isSyncRange: newSyncState }));
+
+        // If enabling sync mode and we have a selection range, perform initial setup
+        if (newSyncState && this.props.selectionRange) {
+            await this.fetchTree();
+            const fullRangeWidth = this.props.range.getEnd() - this.props.range.getStart();
+            this.props.unitController.absoluteRange = fullRangeWidth;
+            const selectionDuration = BIMath.abs(
+                this.props.selectionRange.getEnd() - this.props.selectionRange.getStart()
+            );
+            this.props.unitController.viewRange = {
+                start: BigInt(0),
+                end: selectionDuration
+            };
+            this.chartLayer.updateChart();
+        }
     }
 
     async componentDidUpdate(prevProps: GanttChartOutputProps, prevState: GanttChartOutputState): Promise<void> {
         super.componentDidUpdate(prevProps, prevState);
 
+        // Handle sync range changes when already in sync mode
         if (
             this.state.isSyncRange &&
-            !isEqual(prevProps.selectionRange, this.props.selectionRange && this.props.selectionRange)
+            !isEqual(prevProps.selectionRange, this.props.selectionRange) &&
+            this.props.selectionRange
         ) {
             this.fetchTree();
-            this.chartLayer.update();
-            console.log(this.props.selectionRange?.getStart(), this.props.selectionRange?.getEnd());
+            const fullRangeWidth = this.props.range.getEnd() - this.props.range.getStart();
+            this.props.unitController.absoluteRange = fullRangeWidth;
+            const selectionDuration = BIMath.abs(
+                this.props.selectionRange.getEnd() - this.props.selectionRange.getStart()
+            );
+            this.props.unitController.viewRange = {
+                start: BigInt(0),
+                end: selectionDuration
+            };
+            this.chartLayer.updateChart();
+        }
+        // Handle transition from sync to non-sync mode
+        else if (
+            !this.state.isSyncRange &&
+            prevState.isSyncRange &&
+            !isEqual(prevState.isSyncRange, this.state.isSyncRange)
+        ) {
+            const originalRange = this.props.range.getEnd() - this.props.range.getStart();
+            this.props.unitController.absoluteRange = originalRange;
+            this.props.unitController.viewRange = { start: BigInt(0), end: originalRange };
         }
     }
 }
