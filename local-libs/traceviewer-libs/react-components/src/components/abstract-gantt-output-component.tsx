@@ -435,7 +435,7 @@ export abstract class AbstractGanttOutputComponent<
         }
     }
 
-    private updateTotalHeight() {
+    protected updateTotalHeight() {
         const visibleEntries = [...this.state.chartTree].filter(entry => this.isVisible(entry));
         this.totalHeight = visibleEntries.length * this.props.style.rowHeight;
         this.rowController.totalHeight = this.totalHeight;
@@ -1022,7 +1022,7 @@ export abstract class AbstractGanttOutputComponent<
         return { rowIds };
     }
 
-    private async fetchChartData(
+    protected async fetchChartData(
         range: TimelineChart.TimeGraphRange,
         resolution: number,
         fetchArrows: boolean,
